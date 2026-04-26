@@ -334,7 +334,6 @@ t0      <- proc.time()
 results <- mclapply_progress(seq_len(B), run_one_rep,
                              mc.cores = ncores, label = "Scenario M.1")
 res_mat <- do.call(rbind, results)
-saveRDS(res_mat, file = sprintf("S1_%d_%s.rds", n, format(p0_target, nsmall = 2)))
 elapsed <- (proc.time() - t0)[3]
 
 # ---- Summary ----------------------------------------------------------------
@@ -418,7 +417,6 @@ t0         <- proc.time()
 results_zi <- mclapply_progress(seq_len(B), run_one_rep_zi,
                                 mc.cores = ncores, label = "Scenario M.2")
 res_mat_zi <- do.call(rbind, results_zi)
-saveRDS(res_mat_zi, file = sprintf("S2_%d_%s.rds", n, format(p0_zi, nsmall = 2)))
 elapsed_zi <- (proc.time() - t0)[3]
 
 # ---- Summary ----------------------------------------------------------------
@@ -504,7 +502,6 @@ t0          <- proc.time()
 results_mix <- mclapply_progress(seq_len(B), run_one_rep_mix,
                                  mc.cores = ncores, label = "Scenario M.3")
 res_mat_mix <- do.call(rbind, results_mix)
-saveRDS(results_mix, file = sprintf("S3_%d_%s.rds", n, format(p0_mix, nsmall = 2)))
 elapsed_mix <- (proc.time() - t0)[3]
 
 # ---- Summary ----------------------------------------------------------------
@@ -618,8 +615,6 @@ t0           <- proc.time()
 results_mix2 <- mclapply_progress(seq_len(B), run_one_rep_mix2,
                                   mc.cores = ncores, label = "Scenario M.4")
 res_mat_mix2 <- do.call(rbind, results_mix2)
-saveRDS(results_mix2,
-        file = sprintf("S4_%d_%s_p27h40.rds", n, format(p0_mix2, nsmall = 2)))
 elapsed_mix2 <- (proc.time() - t0)[3]
 
 # ---- Summary ----------------------------------------------------------------
@@ -637,142 +632,6 @@ cat("\n"); print(res_tab_mix2, digits = 4)
 cat("\nSelected p distribution:\n"); print(table(res_mat_mix2[, "p_cv"]))
 cat("\nSelected h distribution:\n"); print(summary(res_mat_mix2[, "h_cv.h"]))
 cat(sprintf("Total time: %.1f seconds\n", elapsed_mix2))
-
-
-# =============================================================================
-# 8. POST-PROCESSING -- BOXPLOTS OF ISE / IAE
-# =============================================================================
-# Run AFTER all .rds result files have been produced (across n and p0).
-# Recommended export size: ~700 x 500 px.
-# =============================================================================
-
-library(dplyr)
-library(tidyr)
-library(purrr)
-library(stringr)
-
-# -----------------------------------------------------------------------------
-# 8.1  Helper: load all result files for a given scenario tag (S1/S2/S3/S4)
-# -----------------------------------------------------------------------------
-# Scenarios M.1 / M.2 stored as a matrix; M.3 / M.4 stored as a list -- handle both.
-load_scenario_results <- function(scenario_tag, dir_path = ".",
-                                  is_list_format = FALSE) {
-  pattern <- sprintf("^%s_\\d+_0\\.(15|3|45)\\.rds$", scenario_tag)
-  files   <- list.files(dir_path, pattern = pattern, full.names = TRUE)
-
-  purrr::map_dfr(files, function(f) {
-    x <- readRDS(f)
-    if (is_list_format) x <- as.data.frame(do.call(rbind, x)) else x <- as.data.frame(x)
-
-    bname  <- basename(f)
-    m      <- str_match(bname, sprintf("^%s_(\\d+)_([0-9.]+)\\.rds$", scenario_tag))
-    x$SampleSize <- as.integer(m[2])
-    x$p0         <- as.numeric(m[3])
-    x$Scenario   <- sub("S", "M.", scenario_tag)
-    x
-  })
-}
-
-# -----------------------------------------------------------------------------
-# 8.2  Helper: build long plot data and shared ggplot theme
-# -----------------------------------------------------------------------------
-build_plot_df <- function(sim_data, metric = c("ISE", "IAE")) {
-  metric <- match.arg(metric)
-  prefix <- if (metric == "ISE") "ise_" else "iae_"
-
-  sim_data %>%
-    transmute(
-      SampleSize = factor(SampleSize, levels = c(100, 200, 500)),
-      p0         = factor(p0),
-      Tweedie       = .data[[paste0(prefix, "tkde")]],
-      `KDE plug-in` = .data[[paste0(prefix, "ks")]],
-      `KDE LSCV`    = .data[[paste0(prefix, "ks_lscv")]],
-      `Gamma KDE`   = .data[[paste0(prefix, "gamma")]]
-    ) %>%
-    pivot_longer(cols = c(Tweedie, `KDE plug-in`, `KDE LSCV`, `Gamma KDE`),
-                 names_to = "Model", values_to = metric) %>%
-    mutate(
-      Model = factor(Model,
-                     levels = c("Tweedie", "KDE plug-in", "KDE LSCV", "Gamma KDE")),
-      p0    = factor(paste0("p[0]==", p0),
-                     levels = paste0("p[0]==", sort(unique(as.numeric(as.character(p0))))))
-    )
-}
-
-boxplot_theme <- theme_classic(base_size = 13) +
-  theme(
-    plot.title        = element_text(size = 18, hjust = 0.5, face = "bold"),
-    legend.text       = element_text(size = 19),
-    legend.title      = element_text(size = 19),
-    legend.key.size   = unit(0.6, "cm"),
-    panel.spacing     = unit(1.1, "lines"),
-    strip.text.x      = element_text(size = 21),
-    axis.text         = element_text(size = 21),
-    axis.title        = element_text(size = 21),
-    axis.ticks        = element_line(linewidth = 0.7),
-    axis.ticks.length = unit(0.25, "cm"),
-    panel.border      = element_rect(color = "black", fill = NA),
-    axis.line         = element_line(color = "black"),
-    strip.background  = element_rect(fill = "grey90", color = "black")
-  )
-
-# -----------------------------------------------------------------------------
-# 8.3  ISE boxplot, M.1 (Tweedie)
-# -----------------------------------------------------------------------------
-sim_data <- load_scenario_results("S1", is_list_format = FALSE)
-plot_df  <- build_plot_df(sim_data, metric = "ISE")
-
-ggplot(plot_df, aes(x = SampleSize, y = ISE, fill = Model)) +
-  geom_boxplot(outlier.size = 0.6, width = 0.75,
-               position = position_dodge(width = 0.8)) +
-  facet_grid(. ~ p0, labeller = label_parsed) +
-  coord_cartesian(ylim = c(0, 0.025)) +
-  labs(title = "M.1: Tweedie", x = "Sample size", y = "ISE", fill = "Model") +
-  boxplot_theme + theme(legend.position = "none")
-
-# -----------------------------------------------------------------------------
-# 8.4  ISE boxplot, M.3 / M.4 (mixture scenarios stored in list format)
-# -----------------------------------------------------------------------------
-# Switch tag to "S4" for M.4.
-sim_data <- load_scenario_results("S3", is_list_format = TRUE)
-plot_df  <- build_plot_df(sim_data, metric = "ISE")
-
-ggplot(plot_df, aes(x = SampleSize, y = ISE, fill = Model)) +
-  geom_boxplot(outlier.size = 0.6, width = 0.75,
-               position = position_dodge(width = 0.8)) +
-  facet_grid(. ~ p0, labeller = label_parsed) +
-  coord_cartesian(ylim = c(0, 0.3)) +
-  labs(title = "M.3: ZI-Gamma Mixture\n(bimodal with dominant mode away from zero)",
-       x = "Sample size", y = "ISE", fill = "Model") +
-  boxplot_theme + theme(legend.position = "bottom")
-
-# -----------------------------------------------------------------------------
-# 8.5  IAE boxplot, M.2 (ZI-Gamma)
-# -----------------------------------------------------------------------------
-sim_data <- load_scenario_results("S2", is_list_format = FALSE)
-plot_df  <- build_plot_df(sim_data, metric = "IAE")
-
-ggplot(plot_df, aes(x = SampleSize, y = IAE, fill = Model)) +
-  geom_boxplot(outlier.size = 0.6, width = 0.75,
-               position = position_dodge(width = 0.8)) +
-  facet_grid(. ~ p0, labeller = label_parsed) +
-  coord_cartesian(ylim = c(0, 0.4)) +
-  labs(title = "M.2: ZI-Gamma", x = "Sample size", y = "IAE", fill = "Model") +
-  boxplot_theme + theme(legend.position = "none")
-
-# -----------------------------------------------------------------------------
-# 8.6  IAE boxplot, M.4 (separated modes)
-# -----------------------------------------------------------------------------
-sim_data <- load_scenario_results("S4", is_list_format = TRUE)
-plot_df  <- build_plot_df(sim_data, metric = "IAE")
-
-ggplot(plot_df, aes(x = SampleSize, y = IAE, fill = Model)) +
-  geom_boxplot(outlier.size = 0.6, width = 0.75,
-               position = position_dodge(width = 0.8)) +
-  facet_grid(. ~ p0, labeller = label_parsed) +
-  labs(title = "M.4: ZI-Gamma Mixture\n(bimodal with separated modes)",
-       x = "Sample size", y = "IAE", fill = "Model") +
-  boxplot_theme + theme(legend.position = "bottom")
 
 # =============================================================================
 # End of script
