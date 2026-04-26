@@ -1,6 +1,6 @@
-# Tweedie-based nonparametric estimation for semicontinuous distributions: Simulation Code
+# Tweedie-based nonparametric estimation for semicontinuous mixed densities: Simulation Code
 
-This repository contains reproducible simulation code for "Tweedie-based nonparametric estimation for semicontinuous distributions". The code supports the simulation studies reported in the accompanying manuscript and is designed to evaluate finite-sample performance, bandwidth selection behavior, and integrated error properties of kernel density estimators for non-negative, zero-inflated outcomes.
+This repository contains reproducible simulation code for "Tweedie-based nonparametric estimation for semicontinuous mixed densities". The code supports the simulation studies reported in the accompanying manuscript and is designed to evaluate finite-sample performance, bandwidth selection behavior, and integrated error properties of kernel density estimators for non-negative, zero-inflated outcomes.
 
 ## Environment
 
