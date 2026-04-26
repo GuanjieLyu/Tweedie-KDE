@@ -345,9 +345,7 @@ res_tab <- data.frame(
   SD     = c(sd(res_mat[, "ise_tkde"]),    sd(res_mat[, "ise_ks"]),
              sd(res_mat[, "ise_ks_lscv"]), sd(res_mat[, "ise_gamma"])),
   MIAE   = c(mean(res_mat[, "iae_tkde"]),    mean(res_mat[, "iae_ks"]),
-             mean(res_mat[, "iae_ks_lscv"]), mean(res_mat[, "iae_gamma"])),
-  SD_2   = c(sd(res_mat[, "iae_tkde"]),    sd(res_mat[, "iae_ks"]),
-             sd(res_mat[, "iae_ks_lscv"]), sd(res_mat[, "iae_gamma"]))
+             mean(res_mat[, "iae_ks_lscv"]), mean(res_mat[, "iae_gamma"]))
 )
 cat("\n"); print(res_tab, digits = 4)
 cat(sprintf("\nTotal time: %.1f seconds\n", elapsed))
